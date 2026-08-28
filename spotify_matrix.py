@@ -21,6 +21,8 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageOps
 
+from weather_matrix import WeatherState, poll_weather, render_weather
+
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -576,6 +578,8 @@ def run(args: argparse.Namespace) -> None:
     idle = render_idle(size)
     playback_state = SharedPlaybackState()
     playback_lock = threading.Lock()
+    weather_state = WeatherState()
+    weather_lock = threading.Lock()
     stop_event = threading.Event()
     poll_thread = threading.Thread(
         target=poll_spotify,
@@ -583,6 +587,12 @@ def run(args: argparse.Namespace) -> None:
         daemon=True,
     )
     poll_thread.start()
+    weather_thread = threading.Thread(
+        target=poll_weather,
+        args=(weather_state, weather_lock, stop_event, args.weather_seconds),
+        daemon=True,
+    )
+    weather_thread.start()
 
     angle = 0.0
     last_frame = time.monotonic()
@@ -601,7 +611,12 @@ def run(args: argparse.Namespace) -> None:
             if is_playing and current_art_image is not None:
                 angle = (angle - 360.0 * (args.rpm / 60.0) * delta) % 360.0
 
-            image = render_record(current_art_image, angle, size) if current_art_image else idle
+            if current_art_image:
+                image = render_record(current_art_image, angle, size)
+            else:
+                with weather_lock:
+                    weather_data = weather_state.data
+                image = render_weather(weather_data, size) if weather_data else idle
             display.show(image)
 
             if args.once:
@@ -614,6 +629,7 @@ def run(args: argparse.Namespace) -> None:
     finally:
         stop_event.set()
         poll_thread.join(timeout=1)
+        weather_thread.join(timeout=1)
         display.clear()
 
 
@@ -648,6 +664,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Avoid Pi onboard sound conflict at the cost of more possible flicker.",
     )
     parser.add_argument("--poll-seconds", type=positive_float, default=2.0)
+    parser.add_argument(
+        "--weather-seconds",
+        type=positive_float,
+        default=120.0,
+        help="Intervallo di aggiornamento dei dati meteo (la pagina si ricarica ogni 120 s).",
+    )
     parser.add_argument("--fps", type=positive_float, default=20.0)
     parser.add_argument("--rpm", type=positive_float, default=20.0)
     parser.add_argument("--token-cache", type=Path, default=Path(".cache/spotify_token.json"))
