@@ -8,15 +8,23 @@ Da affiancare a spotify_matrix.py. Espone:
 from __future__ import annotations
 
 import re
+import ssl
 import threading
+import time as _time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from PIL import Image, ImageDraw, ImageFont
 from selectolax.parser import HTMLParser
 
 WEATHER_URL = "https://www.meteo.dfg.unito.it/principali"
+
+# Il server dell'osservatorio non invia la catena completa del certificato.
+# La verifica TLS viene saltata SOLO per questo host: qualunque altro URL
+# passa dalla verifica normale. Nessun dato sensibile transita qui.
+SKIP_TLS_VERIFY_HOST = "www.meteo.dfg.unito.it"
 
 FONT_PATHS = (
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -73,11 +81,27 @@ def parse_weather(html: str) -> dict[str, float | None]:
     }
 
 
+def _ssl_context(url: str) -> ssl.SSLContext | None:
+    """Contesto senza verifica, ma solo per SKIP_TLS_VERIFY_HOST.
+
+    Restituisce None per ogni altro host, cosi' urllib usa la verifica
+    predefinita. Il contesto non viene mai riusato altrove nel programma.
+    """
+    if urlparse(url).hostname != SKIP_TLS_VERIFY_HOST:
+        return None
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
 def fetch_weather(timeout: float = 10) -> dict[str, float | None]:
     req = urllib.request.Request(
         WEATHER_URL, headers={"User-Agent": "spotify-matrix/1.0"}
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with urllib.request.urlopen(
+        req, timeout=timeout, context=_ssl_context(WEATHER_URL)
+    ) as resp:
         html = resp.read().decode("ISO-8859-1", errors="replace")
     return parse_weather(html)
 
@@ -130,16 +154,18 @@ def render_weather(dati: dict[str, float | None], size: int) -> Image.Image:
     frame = Image.new("RGB", (size, size), (0, 0, 0))
     draw = ImageDraw.Draw(frame)
 
-    grande = _font(max(10, int(size / 3.4)))
-    piccolo = _font(max(7, int(size / 7.2)))
+    grande = _font(max(9, int(size / 3.6)))
+    piccolo = _font(max(7, int(size / 7.6)))
+
+    _centrato(draw, -1, _time.strftime("%H:%M"), piccolo, (150, 150, 150), size)
 
     temp = dati.get("temperatura")
-    _centrato(draw, 0, f"{temp:.1f}\u00b0" if temp is not None else "--",
+    _centrato(draw, int(size / 9.5), f"{temp:.1f}\u00b0" if temp is not None else "--",
               grande, (255, 170, 60), size)
 
-    y = int(size / 2.7)
+    y = int(size / 2.3)
     draw.line((4, y - 3, size - 5, y - 3), fill=(40, 40, 40))
-    passo = int(size / 7.3)
+    passo = int(size / 7.5)
 
     righe = (
         ("umidita", "UR {:.0f}%", (90, 170, 255)),
