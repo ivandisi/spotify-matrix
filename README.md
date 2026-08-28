@@ -10,6 +10,7 @@ This uses Spotify's Web API `currently-playing` endpoint, not the browser-only W
 - `.env` - local Spotify credentials, ignored by Git.
 - `.env.example` - template for recreating local config.
 - `requirements.txt` - Python dependencies, excluding the hardware-specific RGB matrix bindings.
+- `pip install selectolax`
 
 ## Raspberry Pi setup
 
@@ -47,13 +48,9 @@ This is the working command to run the script on your raspberry pi:
 
 ```bash
 sudo -E .venv/bin/python spotify_matrix.py \
-  --rows 64 \
-  --cols 64 \
-  --chain-length 1 \
-  --parallel 1 \
-  --gpio-slowdown 4 \
-  --no-hardware-pulse \
-  --hardware-mapping adafruit-hat
+  --rows 64 --cols 64 --chain-length 1 --parallel 1 \
+  --gpio-slowdown 4 --no-hardware-pulse --hardware-mapping adafruit-hat \
+  --weather-seconds 120
 ```
 
 Useful hardware options:
