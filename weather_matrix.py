@@ -173,7 +173,7 @@ def render_weather(dati: dict[str, float | None], size: int) -> Image.Image:
     temp = dati.get("temperatura")
     testo_temp = f"{temp:.1f}\u00b0" if temp is not None else "--"
     f_temp = _font_adattato(draw, testo_temp, utile, int(size / 3.1))
-    _centrato(draw, int(size * 0.34), testo_temp, f_temp, (255, 170, 60), size)
+    _centrato(draw, int(size * 0.34), testo_temp, f_temp, (255, 105, 160), size)
 
     # --- umidita' relativa, medio-grande ---
     ur = dati.get("umidita")
