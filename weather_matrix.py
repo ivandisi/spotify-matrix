@@ -150,34 +150,46 @@ def _centrato(draw, y, testo, font, fill, size):
     draw.text(((size - larghezza) / 2, y), testo, font=font, fill=fill)
 
 
+def _font_adattato(draw, testo, larghezza_max, size_max, size_min=6):
+    """Il font piu' grande con cui il testo sta nella larghezza data."""
+    for s in range(size_max, size_min - 1, -1):
+        font = _font(s)
+        if draw.textlength(testo, font=font) <= larghezza_max:
+            return font
+    return _font(size_min)
+
+
 def render_weather(dati: dict[str, float | None], size: int) -> Image.Image:
     frame = Image.new("RGB", (size, size), (0, 0, 0))
     draw = ImageDraw.Draw(frame)
+    utile = size - 4
 
-    grande = _font(max(9, int(size / 3.6)))
-    piccolo = _font(max(7, int(size / 7.6)))
+    # --- ora e minuti, grandi ---
+    ora = _time.strftime("%H:%M")
+    f_ora = _font_adattato(draw, ora, utile, int(size / 2.9))
+    _centrato(draw, int(size * 0.02), ora, f_ora, (235, 235, 235), size)
 
-    _centrato(draw, -1, _time.strftime("%H:%M"), piccolo, (150, 150, 150), size)
-
+    # --- temperatura, grande ---
     temp = dati.get("temperatura")
-    _centrato(draw, int(size / 9.5), f"{temp:.1f}\u00b0" if temp is not None else "--",
-              grande, (255, 170, 60), size)
+    testo_temp = f"{temp:.1f}\u00b0" if temp is not None else "--"
+    f_temp = _font_adattato(draw, testo_temp, utile, int(size / 3.1))
+    _centrato(draw, int(size * 0.34), testo_temp, f_temp, (255, 170, 60), size)
 
-    y = int(size / 2.3)
-    draw.line((4, y - 3, size - 5, y - 3), fill=(40, 40, 40))
-    passo = int(size / 7.5)
+    # --- umidita' relativa, medio-grande ---
+    ur = dati.get("umidita")
+    if ur is not None:
+        testo_ur = f"UR {ur:.0f}%"
+        f_ur = _font_adattato(draw, testo_ur, utile, int(size / 4.6))
+        _centrato(draw, int(size * 0.70), testo_ur, f_ur, (0, 210, 200), size)
 
-    righe = (
-        ("umidita", "UR {:.0f}%", (90, 170, 255)),
-        ("vento", "{:.1f} m/s", (120, 220, 200)),
-        ("pressione", "{:.0f} hPa", (200, 200, 200)),
-        ("pioggia", "{:.1f} mm", (110, 140, 255)),
-    )
-    for chiave, formato, colore in righe:
-        valore = dati.get(chiave)
-        if valore is None:
-            continue
-        _centrato(draw, y, formato.format(valore), piccolo, colore, size)
-        y += passo
+    # Le posizioni sopra sono solo la spaziatura relativa fra le righe.
+    # I margini reali dipendono da ascendenti e discendenti del font, che
+    # cambiano col testo, quindi misuro l'ingombro e ricentro il blocco.
+    inchiostro = frame.getbbox()
+    if inchiostro:
+        _, alto, _, basso = inchiostro
+        blocco = frame.crop((0, alto, size, basso))
+        frame = Image.new("RGB", (size, size), (0, 0, 0))
+        frame.paste(blocco, (0, (size - (basso - alto)) // 2))
 
     return frame
